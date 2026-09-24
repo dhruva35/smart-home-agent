@@ -1,5 +1,5 @@
 from langgraph.prebuilt import create_react_agent
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from agent.config import settings
@@ -32,9 +32,9 @@ def build_agent(source: str):
 
     `source` is never controllable by the LLM — see agent/tools.py.
     """
-    llm = ChatGoogleGenerativeAI(
+    llm = ChatGroq(
         model=settings.chat_model,
-        google_api_key=settings.google_api_key,
+        groq_api_key=settings.groq_api_key,
         temperature=0,
     )
     tools = build_tools(source)
