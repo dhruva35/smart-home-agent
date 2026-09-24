@@ -188,12 +188,14 @@ async function sendChat() {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ message: msg }),
     });
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = { answer: text }; }
     removeTyping(tid);
     addMessage('chat-messages', data.answer ?? JSON.stringify(data), 'from-agent');
   } catch (err) {
     removeTyping(tid);
-    addMessage('chat-messages', `Error: ${err.message}`, 'from-agent');
+    addMessage('chat-messages', `Network error: ${err.message}`, 'from-agent');
   } finally {
     btn.disabled = false;
     input.focus();
@@ -221,14 +223,16 @@ async function sendWebhook() {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ event_text: msg }),
     });
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = { answer: text }; }
     removeTyping(tid);
     addMessage('hacker-messages', data.answer ?? JSON.stringify(data), 'from-agent hacker-msg');
     // Immediately check for new pending approvals
     await fetchPending();
   } catch (err) {
     removeTyping(tid);
-    addMessage('hacker-messages', `Error: ${err.message}`, 'from-agent hacker-msg');
+    addMessage('hacker-messages', `Network error: ${err.message}`, 'from-agent hacker-msg');
   } finally {
     btn.disabled = false;
     input.focus();

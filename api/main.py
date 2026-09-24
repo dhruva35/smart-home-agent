@@ -1,14 +1,17 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 import requests
+import logging
 import os
 
 from agent.agent import run_agent
 from agent.pending import list_pending, approve_pending, deny_pending, reset_pending
 from agent.config import settings
+
+logger = logging.getLogger("api")
 
 app = FastAPI(title="Smart Home Agent API")
 
@@ -18,6 +21,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch-all: always return JSON so the frontend never sees an HTML 500."""
+    logger.exception("Unhandled error on %s", request.url)
+    return JSONResponse(
+        status_code=500,
+        content={"error": str(exc), "detail": "Internal server error — check server logs."},
+    )
 
 
 class ChatRequest(BaseModel):
@@ -48,16 +61,29 @@ def serve_index():
 @app.post("/chat")
 def chat(req: ChatRequest):
     """Trusted owner channel — commands execute directly."""
-    # Use owner_sms source so high-risk tools are permitted.
-    answer = run_agent(source="owner_sms", user_text=req.message)
-    return {"answer": answer}
+    try:
+        answer = run_agent(source="owner_sms", user_text=req.message)
+        return {"answer": answer}
+    except Exception as exc:
+        logger.exception("Agent error in /chat")
+        return JSONResponse(
+            status_code=200,  # Return 200 so the frontend still parses as JSON
+            content={"answer": f"⚠️ Agent error: {exc}. Please check that GOOGLE_API_KEY and MOCK_API_URL are set correctly on Render."},
+        )
 
 
 @app.post("/webhook/device-event")
 def device_event(req: WebhookRequest):
     """Untrusted webhook channel — the red-team attack surface."""
-    answer = run_agent(source="device_webhook", user_text=req.event_text)
-    return {"answer": answer}
+    try:
+        answer = run_agent(source="device_webhook", user_text=req.event_text)
+        return {"answer": answer}
+    except Exception as exc:
+        logger.exception("Agent error in /webhook/device-event")
+        return JSONResponse(
+            status_code=200,
+            content={"answer": f"⚠️ Agent error: {exc}. Please check that GOOGLE_API_KEY and MOCK_API_URL are set correctly on Render."},
+        )
 
 
 # ------------------------------------------------------------------ #
